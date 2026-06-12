@@ -4,9 +4,84 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyWrapper = document.getElementById('historyWrapper');
     const historyChips = document.getElementById('historyChips');
     const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const pasteBtn = document.getElementById('pasteBtn');
 
     // Load initial history
     loadHistory();
+
+    // Clipboard automatic fill helpers
+    function isValidPhoneNumberFormat(text) {
+        const clean = text.replace(/[^\d+]/g, '');
+        if (clean.startsWith('0') && clean.length === 10) return true;
+        if (clean.startsWith('+84') && clean.length === 12) return true;
+        if (clean.startsWith('84') && clean.length === 11) return true;
+        return false;
+    }
+
+    function flashInput() {
+        const inputContainer = document.querySelector('.input-container');
+        if (inputContainer) {
+            inputContainer.style.borderColor = 'var(--success)';
+            inputContainer.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.4)';
+            setTimeout(() => {
+                inputContainer.style.borderColor = '';
+                inputContainer.style.boxShadow = '';
+            }, 800);
+        }
+    }
+
+    function autoFillFromClipboard() {
+        // Only try to read if the input is empty to avoid overwriting user typing
+        if (phoneInput.value.trim() !== '') return;
+
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            navigator.clipboard.readText().then(text => {
+                const cleanText = text.trim();
+                if (isValidPhoneNumberFormat(cleanText)) {
+                    phoneInput.value = cleanText;
+                    flashInput();
+                }
+            }).catch(err => {
+                // Silently fail for auto-read if permission is not granted
+                console.log('Auto-read clipboard blocked:', err);
+            });
+        }
+    }
+
+    // Try auto-fill on page load and when tab/window gets focus
+    setTimeout(autoFillFromClipboard, 500); // Small delay on load
+    window.addEventListener('focus', autoFillFromClipboard);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            autoFillFromClipboard();
+        }
+    });
+
+    // Paste button click listener (user-initiated always has access)
+    if (pasteBtn) {
+        pasteBtn.addEventListener('click', () => {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(text => {
+                    const cleanText = text.trim();
+                    phoneInput.value = cleanText;
+                    flashInput();
+                    
+                    // Check if it's a valid phone number, then run search immediately!
+                    let sanitized = cleanText.replace(/\D/g, '');
+                    if (sanitized.startsWith('84')) {
+                        sanitized = '0' + sanitized.substring(2);
+                    }
+                    if (sanitized.length === 10 && sanitized.startsWith('0')) {
+                        performGoogleOSINT(cleanText);
+                    }
+                }).catch(err => {
+                    alert('Không thể truy cập Clipboard. Vui lòng cho phép quyền truy cập bộ nhớ tạm trên trình duyệt.');
+                });
+            } else {
+                alert('Trình duyệt của bạn không hỗ trợ đọc Clipboard tự động.');
+            }
+        });
+    }
 
     // Form submit listener
     searchForm.addEventListener('submit', (e) => {
